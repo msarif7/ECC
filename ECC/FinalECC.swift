@@ -1,7 +1,7 @@
 import Foundation
 import Security
 
-class EccUtility2 {
+class EccUtility {
     private var privateKey: SecKey?
     private var certificate: SecCertificate?
 
@@ -59,12 +59,24 @@ class EccUtility2 {
     }
 
     func signData(data: Data) -> Data? {
-        // Sign the data using the private key
+            // Sign the data using the private key
+        var error: Unmanaged<CFError>?
         let algorithm = SecKeyAlgorithm.ecdsaSignatureMessageX962SHA256
         guard let signature = SecKeyCreateSignature(privateKey!, algorithm, data as CFData, &error) as Data? else {
             print("Failed to sign data: \(String(describing: error?.takeRetainedValue()))")
             return nil
         }
         return signature
+    }
+
+    func verifyData(data: Data, signature: Data) -> Bool {
+        // Verify the signature using the public key
+        var error: Unmanaged<CFError>?
+        let algorithm = SecKeyAlgorithm.ecdsaSignatureMessageX962SHA256
+        guard let publicKey = SecCertificateCopyKey(certificate!) else {
+            print("Failed to get public key from certificate")
+            return false
+        }
+        return SecKeyVerifySignature(publicKey, algorithm, data as CFData, signature as CFData, &error)
     }
 }

@@ -18,10 +18,26 @@ struct ContentView: View {
         .padding()
         .onAppear {
             let eccUtility = EccUtility()
-            eccUtility.generateData()
-            print("Private key: \(String(describing: eccUtility.privateKey))")
-            print("Public key: \(String(describing: eccUtility.publicKey))")
-            print("Certificate: \(String(describing: eccUtility.certificate))")
+            // Export the certificate as DER-encoded data
+            guard (eccUtility?.exportCertificate()) != nil else {
+                        print("Failed to export certificate")
+                        return
+                    }
+
+                    // Sign some data using the private key
+                    let dataToSign = "Hello, world!".data(using: .utf8)!
+            guard let signature = eccUtility?.signData(data: dataToSign) else {
+                        print("Failed to sign data")
+                        return
+                    }
+
+                    // Verify the signature using the public key
+                    let signatureIsValid = eccUtility?.verifyData(data: dataToSign, signature: signature)
+            if signatureIsValid ?? <#default value#> {
+                        print("Signature is valid")
+                    } else {
+                        print("Signature is invalid")
+                    }
         }
         
     }
