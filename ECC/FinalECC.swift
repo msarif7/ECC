@@ -1,8 +1,10 @@
 import Foundation
 import Security
+import CryptoKit
 
 class EccUtility {
     private var privateKey: SecKey?
+    private var publicKey: SecKey?
     private var certificate: SecCertificate?
 
     init?() {
@@ -20,42 +22,39 @@ class EccUtility {
             return
         }
         self.privateKey = privateKey
-
-        // Create a certificate with the public key
-        guard let publicKey = SecKeyCopyPublicKey(privateKey) else {
-            print("Failed to retrieve public key")
+        let publicKey = SecKeyCopyPublicKey(privateKey)
+        self.publicKey = publicKey
+        guard let publicKeyData = SecKeyCopyExternalRepresentation(publicKey!, &error) as Data? else {
+            print("Failed to get public key data: \(error?.takeRetainedValue().localizedDescription ?? "Unknown error")")
             return
         }
-        let subject = [
-            [kSecOIDCountryName as String: "US"],
-            [kSecOIDOrganizationName as String: "My Company"],
-            [kSecOIDCommonName as String: "My Self-Signed Certificate"]
-        ] as CFArray
-        let certificateAttributes: [CFString: Any] = [
-            kSecAttrSubject: subject,
-            kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom,
-            kSecAttrKeySizeInBits: 256,
-            kSecAttrPublicKey: publicKey,
-            kSecAttrTokenID: kSecAttrTokenIDSecureEnclave,
-            kSecAttrSerialNumber: Data([0x01, 0x02, 0x03, 0x04, 0x05]),
-            kSecAttrCertificateType: kSecAttrCertificateTypeECSECPrimeRandom
-        ]
-        guard let certificate = SecCertificateCreateWithData(nil, certificateAttributes as! CFData) else {
-            print("Failed to create certificate")
+
+        let publicKeyHash = SHA256.hash(data: publicKeyData)
+        let publicKeyHashData = Data(publicKeyHash)
+        
+        let serialNumber = Data([UInt8](repeating: 0, count: 5).map { _ in UInt8(arc4random_uniform(256)) })
+
+        let certificateAttributes: CFDictionary = [
+            kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom,
+            kSecAttrKeySizeInBits as String: 256,
+            kSecAttrTokenID as String: kSecAttrTokenIDSecureEnclave,
+            kSecAttrPublicKeyHash as String: publicKeyHashData as CFData,
+            kSecAttrSerialNumber as String: serialNumber as CFData,
+            kSecAttrSubject as String: "My Entity" as CFString
+        ] as CFDictionary
+
+        do {
+            let certificateData = try NSKeyedArchiver.archivedData(withRootObject: certificateAttributes, requiringSecureCoding: false)
+            if let certificate = SecCertificateCreateWithData(nil, certificateData as CFData) {
+                self.certificate = certificate
+            } else {
+                print("Failed to create certificate")
+                return
+            }
+        } catch {
+            print("Failed to archive certificate attributes: \(error)")
             return
         }
-        self.certificate = certificate
-    }
-
-    func exportCertificate() -> Data? {
-        // Export the certificate as DER-encoded data
-        var exportError: Unmanaged<CFError>?
-        guard let exportData = SecItemExport([kSecValueRef: certificate as Any,
-                                              kSecReturnData: true] as CFDictionary, &exportError) as Data? else {
-            print("Failed to export certificate: \(String(describing: exportError?.takeRetainedValue()))")
-            return nil
-        }
-        return exportData
     }
 
     func signData(data: Data) -> Data? {
@@ -73,10 +72,6 @@ class EccUtility {
         // Verify the signature using the public key
         var error: Unmanaged<CFError>?
         let algorithm = SecKeyAlgorithm.ecdsaSignatureMessageX962SHA256
-        guard let publicKey = SecCertificateCopyKey(certificate!) else {
-            print("Failed to get public key from certificate")
-            return false
-        }
-        return SecKeyVerifySignature(publicKey, algorithm, data as CFData, signature as CFData, &error)
+        return SecKeyVerifySignature(publicKey!, algorithm, data as CFData, signature as CFData, &error)
     }
 }
