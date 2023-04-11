@@ -7,9 +7,10 @@ class EccUtility {
     private var publicKey: SecKey?
     private var certificate: SecCertificate?
 
-    init?() {
-        
+    func createCertificate() {
         var error: Unmanaged<CFError>?
+
+
         guard let publicKeyData = SecKeyCopyExternalRepresentation(publicKey!, &error) as Data? else {
             print("Failed to get public key data: \(error?.takeRetainedValue().localizedDescription ?? "Unknown error")")
             return

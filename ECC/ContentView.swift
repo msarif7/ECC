@@ -18,7 +18,7 @@ struct ContentView: View {
         .padding()
         .onAppear {
             let eccUtility = EccUtility()
-            
+            eccUtility?.generateKey()
             let dataToSign = "Hello,world!".data(using: .utf8)!
             guard let signature = eccUtility?.signData(data: dataToSign) else {
                         print("Failed to sign data")
