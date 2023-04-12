@@ -8,37 +8,56 @@ class EccUtility {
     private var certificate: SecCertificate?
 
     func createCertificate() {
+        // Define an optional variable to hold any errors that occur during the key copy
         var error: Unmanaged<CFError>?
 
-
+        // Attempt to get the public key data using SecKeyCopyExternalRepresentation
         guard let publicKeyData = SecKeyCopyExternalRepresentation(publicKey!, &error) as Data? else {
+            // If an error occurs, print an error message and return nil
             print("Failed to get public key data: \(error?.takeRetainedValue().localizedDescription ?? "Unknown error")")
             return
         }
 
+        // Calculate the SHA-256 hash of the public key data
         let publicKeyHash = SHA256.hash(data: publicKeyData)
+
+        // Convert the hash to a Data object
         let publicKeyHashData = Data(publicKeyHash)
-        
+
+        // Generate a 5-byte serial number for the certificate
         let serialNumber = Data([UInt8](repeating: 0, count: 5).map { _ in UInt8(arc4random_uniform(256)) })
 
+        // Create a dictionary of attributes for the certificate
         let certificateAttributes: CFDictionary = [
+            // Specify that the certificate's key type is ECDSA
             kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom,
+            // Specify that the key size is 256 bits
             kSecAttrKeySizeInBits as String: 256,
+            // Specify that the certificate should be stored in the Secure Enclave
             kSecAttrTokenID as String: kSecAttrTokenIDSecureEnclave,
+            // Specify the hash of the public key as an attribute
             kSecAttrPublicKeyHash as String: publicKeyHashData as CFData,
+            // Specify the serial number as an attribute
             kSecAttrSerialNumber as String: serialNumber as CFData,
+            // Specify the subject name for the certificate
             kSecAttrSubject as String: "My Entity" as CFString
         ] as CFDictionary
 
         do {
+            // Use NSKeyedArchiver to serialize the certificate attributes as data
             let certificateData = try NSKeyedArchiver.archivedData(withRootObject: certificateAttributes, requiringSecureCoding: false)
+            
+            // Create a SecCertificate object using the serialized data
             if let certificate = SecCertificateCreateWithData(nil, certificateData as CFData) {
+                // If the certificate is successfully created, assign it to the certificate property
                 self.certificate = certificate
             } else {
+                // If creating the certificate fails, print an error message and return nil
                 print("Failed to create certificate")
                 return
             }
         } catch {
+            // If an error occurs during serialization, print an error message and return nil
             print("Failed to archive certificate attributes: \(error)")
             return
         }
@@ -54,9 +73,7 @@ class EccUtility {
             kSecAttrKeySizeInBits as String: 256 // Key size is 256 bits
         ]
 
-        // Declare variables to hold the generated private and public keys, as well as any error that may occur
-        var privateKey: SecKey?
-        var publicKey: SecKey?
+       
         var error: Unmanaged<CFError>?
 
         // Generate a random ECC key pair, with the specified private and public key parameters
@@ -68,47 +85,8 @@ class EccUtility {
         }
 
         // Assign the generated keys to their respective variables
-        privateKey = privateKeyData
-        publicKey = publicKeyData
-
-        // Specify parameters for adding the private key to the Keychain
-        let privateKeyAddQuery: [String: Any] = [
-            kSecValueRef as String: privateKey!, // The key to be added to the Keychain
-            kSecAttrApplicationTag as String: "com.example.privatekey", // The unique tag of the key being added
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly, // The key should be accessible only when the device is unlocked
-            kSecClass as String: kSecClassKey, // The item to be added is a key
-            kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom, // The key type is ECC
-            kSecReturnPersistentRef as String: true // Return a persistent reference to the key
-        ]
-
-        // Specify parameters for adding the public key to the Keychain
-        let publicKeyAddQuery: [String: Any] = [
-            kSecValueRef as String: publicKey!, // The key to be added to the Keychain
-            kSecAttrApplicationTag as String: "com.example.publickey", // The unique tag of the key being added
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly, // The key should be accessible only when the device is unlocked
-            kSecClass as String: kSecClassKey, // The item to be added is a key
-            kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom, // The key type is ECC
-            kSecReturnPersistentRef as String: true// Return a persistent reference to the key
-        ]
-        
-        // This initializes a variable to hold the result of the Keychain operation.
-        var result: AnyObject?
-
-        // This adds the private key to the Keychain.
-        var status = SecItemAdd(privateKeyAddQuery as CFDictionary, &result)
-
-        // If adding the private key fails, it prints an error message.
-        if status != errSecSuccess {
-            print("Failed to add private key to Keychain: \(status)")
-        }
-
-        // This adds the public key to the Keychain.
-        status = SecItemAdd(publicKeyAddQuery as CFDictionary, &result)
-
-        // If adding the public key fails, it prints an error message.
-        if status != errSecSuccess {
-            print("Failed to add public key to Keychain: \(status)")
-        }
+        self.privateKey = privateKeyData
+        self.publicKey = publicKeyData
     }
 
     func signData(data: Data) -> Data? {
