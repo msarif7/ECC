@@ -25,6 +25,7 @@ struct ContentView: View {
                         print("Failed to sign data")
                         return
                     }
+            print("Signature: " + signature.map { String(format: "%02hhx", $0) }.joined())
             // Verify the signature using the public key
             let signatureIsValid = eccUtility.verifyData(data: dataToSign, signature: signature)
             print(signatureIsValid)
