@@ -19,12 +19,12 @@ struct ContentView: View {
         .onAppear {
             let eccUtility = EccUtility()
             eccUtility.generateKey()
-            eccUtility.createCertificate()
-            let dataToSign = "Hello,world!".data(using: .utf8)!
+            let dataToSign = "This is testing of signature".data(using: .utf8)!
             guard let signature = eccUtility.signData(data: dataToSign) else {
                         print("Failed to sign data")
                         return
                     }
+            print("Signature: " + signature.map { String(format: "%02hhx", $0) }.joined())
             // Verify the signature using the public key
             let signatureIsValid = eccUtility.verifyData(data: dataToSign, signature: signature)
             print(signatureIsValid)
